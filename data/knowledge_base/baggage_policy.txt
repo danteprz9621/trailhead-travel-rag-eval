@@ -1,0 +1,11 @@
+Trailhead Travel Baggage Policy
+
+Economy passengers may check one bag up to 23kg free of charge; each additional checked bag costs $60, and any single bag over 23kg (up to a 32kg limit) incurs a $75 overweight fee. Bags over 32kg are not accepted under any circumstances and must be split into multiple bags at the passenger's expense. Premium Economy passengers receive the same checked allowance as Economy but pay a reduced $40 fee for a second bag.
+
+Business Class passengers may check two bags up to 32kg each at no charge. Trailhead Rewards Gold and Platinum members (see loyalty_program.txt) receive one additional free checked bag regardless of cabin class, added on top of their fare's standard allowance.
+
+Carry-on baggage is limited to one bag (max 10kg, no larger than 56 x 36 x 23 cm) plus one personal item (such as a handbag or laptop bag) for all fare classes. Musical instruments that fit within carry-on dimensions may be brought aboard as the personal item; larger instruments must be checked or booked an extra seat.
+
+Sporting equipment (skis, golf bags, surfboards) must be declared at the time of booking and is subject to a flat $50 handling fee regardless of weight, up to 20kg; equipment exceeding 20kg is charged as an additional overweight bag. Trailhead Travel does not accept firearms, ammunition, or other regulated items as checked or carry-on baggage on any route.
+
+Pets travelling in the cabin count toward the one-personal-item carry-on allowance and require a separate advance booking (see pet_policy.txt); pets do not count against the checked baggage limit.

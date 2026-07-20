@@ -1,0 +1,9 @@
+Trailhead Travel Flight Delay & Cancellation Policy
+
+When Trailhead Travel cancels a flight or delays it more than 3 hours for reasons within our control (e.g. crew scheduling, maintenance), affected passengers are rebooked on the next available Trailhead flight at no cost, or may request a full refund regardless of fare type — this overrides the Basic Economy no-refund restriction in refund_policy.txt. Passengers delayed overnight due to a controllable cancellation are provided a hotel voucher and two meal vouchers.
+
+Delays or cancellations caused by circumstances outside Trailhead's control — weather, air traffic control restrictions, security incidents, or airport strikes — are not eligible for hotel or meal vouchers, though passengers may still rebook on the next available flight at no change fee. Compensation in these cases, if any, is limited to what is legally required in the country of departure.
+
+Passengers who purchased Trailhead Travel Insurance may separately claim travel delay benefits described in travel_insurance.txt, which apply on top of (not instead of) any airline-provided vouchers, up to the policy's stated caps.
+
+Missed connections caused by a Trailhead flight arriving late are automatically rebooked on the next available onward flight at no charge; if no same-day option exists, the overnight hotel and meal voucher policy above applies regardless of whether the original delay was controllable, since the passenger was already committed to the itinerary.

@@ -1,0 +1,20 @@
+ragas>=0.4.0,<1.0.0
+ollama>=0.4.0
+# Used by every tests/*.py and scripts/*.py file: llm_factory()/
+# embedding_factory() want an OpenAI-SDK client (AsyncOpenAI), pointed at
+# Ollama's OpenAI-compatible endpoint -- not an actual OpenAI account or
+# API key. (No langchain-ollama here: nothing in this project imports
+# ChatOllama/OllamaEmbeddings any more.)
+openai>=1.0.0
+# Pinned <0.4: ragas 0.4.x unconditionally imports
+# langchain_community.chat_models.vertexai, which langchain-community 0.4+
+# dropped (moved to the standalone langchain-google-vertexai package).
+langchain-community>=0.3.0,<0.4.0
+scikit-learn>=1.4.0
+python-dotenv>=1.0.0
+pytest>=7.0.0
+# Required by TestsetGenerator (test_dataset_eval.py) for string-distance
+# scoring during knowledge-graph construction -- without it, generation
+# fails partway through with ImportError. Not related to which LLM/
+# embeddings wrapper is used; ragas just doesn't declare it as a dependency.
+rapidfuzz>=3.0.0

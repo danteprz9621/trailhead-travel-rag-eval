@@ -1,0 +1,9 @@
+Trailhead Travel Insurance
+
+Trailhead Travel Insurance is an optional add-on purchased at the time of booking or within 14 days afterward. The Standard plan covers trip cancellation for covered reasons (documented illness, injury, death of an immediate family member, or jury duty), reimbursing up to 100% of the non-refundable trip cost. The Premium plan adds "cancel for any reason" coverage, reimbursing 75% of the non-refundable cost when cancelling for reasons outside the Standard plan's covered list, as long as the cancellation is made at least 48 hours before departure.
+
+Neither plan covers pre-existing medical conditions unless the policy was purchased within 14 days of the initial trip deposit and the traveler was medically able to travel on the day of purchase. Claims related to pandemics or government-issued travel advisories are only covered under the Premium plan, and only for advisories issued after the policy purchase date.
+
+Travel delay benefits reimburse reasonable expenses (meals, one night of lodging) when a covered flight is delayed more than 6 hours, capped at $200 per day and $1,000 per trip. This is separate from any airline-provided delay compensation described in flight_delays_cancellations.txt, and Trailhead Travel Insurance coordinates with the airline's compensation to avoid double payment.
+
+As noted in visa_requirements.txt, only policies that explicitly list "documentation and visa denial" coverage reimburse costs from being denied boarding or entry due to travel document issues; this add-on is only available on the Premium plan and must be selected separately at checkout.

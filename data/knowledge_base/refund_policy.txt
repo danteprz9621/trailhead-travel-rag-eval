@@ -1,0 +1,9 @@
+Trailhead Travel Refund Policy
+
+Flights cancelled more than 48 hours before scheduled departure are eligible for a full refund to the original payment method, processed within 5-7 business days for credit cards and up to 10 business days for bank transfers. Flights cancelled between 2 and 48 hours before departure receive a 50% refund issued as a non-transferable travel credit valid for 12 months from the date of cancellation. Flights cancelled less than 2 hours before departure, and no-shows, are not eligible for any refund or credit.
+
+Hotel bookings marked "free cancellation" at the time of booking can be cancelled up to 24 hours before check-in (local hotel time) for a full refund. Bookings marked "non-refundable" or "saver rate" are not eligible for any refund once confirmed, even in cases of illness or emergency, unless the traveler purchased Trailhead Travel Insurance covering the trip (see travel_insurance.txt for what that policy covers).
+
+Package bookings that combine a flight and hotel are refunded according to whichever component has the stricter policy: if the flight portion is non-refundable, the entire package is treated as non-refundable even if the hotel alone would have qualified for a refund on its own.
+
+Refund requests must be submitted through the "Manage My Booking" portal or by contacting support with the booking reference; refunds requested by phone without a booking reference cannot be processed. Refunds due to expired or cancelled cards are converted to travel credit automatically.

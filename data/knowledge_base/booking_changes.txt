@@ -1,0 +1,9 @@
+Trailhead Travel Booking Changes
+
+Date and route changes to flights are permitted up to 3 hours before scheduled departure, subject to fare rules and availability. Standard Economy fares incur a $75 change fee plus any difference in ticket price. Flex Economy and above fares waive the $75 change fee entirely but still require payment of any fare difference. Basic Economy (the lowest, most restricted fare) does not permit any changes after booking is confirmed; the only option is to cancel under the no-refund terms in refund_policy.txt.
+
+Name corrections of up to 3 characters (for typos) are free within 24 hours of booking. Full name changes or reassigning a ticket to a different traveler are never permitted — a new booking must be purchased instead.
+
+Hotel date changes follow the same free-cancellation vs. non-refundable distinction described in refund_policy.txt: a free-cancellation hotel booking can be moved to new dates at no charge if requested before the cancellation deadline, while non-refundable bookings cannot be changed and must be rebooked separately.
+
+Same-day standby requests (flying an earlier flight on the same route and same day) are free for Trailhead Rewards Silver members and above, and cost $35 for all other passengers, space permitting.
