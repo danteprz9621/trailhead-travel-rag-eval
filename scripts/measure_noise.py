@@ -38,10 +38,10 @@ anywhere with the newer embedding_factory().
 """
 
 import statistics
-
+import asyncio
 from openai import AsyncOpenAI
 from ragas import evaluate, EvaluationDataset, SingleTurnSample
-from ragas.metrics import Faithfulness
+from ragas.metrics.collections import Faithfulness, ContextRecall
 from ragas.llms import llm_factory
 
 from agents.rag_agent import ask
@@ -52,7 +52,10 @@ from agents.rag_agent import ask
 #    provider="openai", client=client) -- same pattern as
 #    test_rag_agent.py/test_dataset_eval.py step 1. Then a Faithfulness
 #    instance (no embeddings needed).
-
+client = AsyncOpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+judge_llm = llm_factory("llama3.1:8b", provider="openai", client=client)
+faithfulness = Faithfulness(judge_llm)
+context_recall = ContextRecall(judge_llm)
 
 # 2. Pick ONE fixed question the knowledge base can answer, call ask() on
 #    it ONCE, and build a single SingleTurnSample from the result (see
@@ -60,17 +63,48 @@ from agents.rag_agent import ask
 #    retrieved_contexts shape). The point is to hold the system's output
 #    completely still -- you're measuring judge variance here, not agent
 #    variance, so don't call ask() again inside the loop in step 3.
+user_question = "What's the refund policy?"
+context_reference="There's a refund policy and flights cancelled more than 48 hours before scheduled departure are eligible for a full refund to the original payment method"
+result = ask(user_question)
+sample = SingleTurnSample(
+    user_input=user_question,
+    response=result["answer"],
+    retrieved_contexts=result["retrieved_contexts"],
+    reference=context_reference
+)
 
 
-# 3. Write a loop that runs evaluate() on a fresh EvaluationDataset built
-#    from that one sample, N times (10 is a reasonable start). Each
-#    iteration:
-#    - Pull the score list back out with result["faithfulness"]
-#    - Reduce it to a single number with statistics.mean(...) (there's only
-#      one sample per run, so this just unwraps a 1-element list -- write
-#      it generically anyway, it generalizes to bigger datasets later)
+# 3. Write a loop that scores that ONE fixed sample N times (10 is a
+#    reasonable start) by calling faithfulness.ascore() directly. In v0.4
+#    there's no evaluate() batch call and no EvaluationDataset result dict
+#    (both deprecated) -- you score per-sample and read the number off the
+#    returned MetricResult. Each iteration:
+#    - res = asyncio.run(faithfulness.ascore(
+#          response=sample.response,
+#          retrieved_contexts=sample.retrieved_contexts))
+#      (ascore() is async: wrap it in asyncio.run in a sync test, or make
+#      the test async under pytest-asyncio and await it)
+#    - Read the score off res.value (a float; res.reason holds the judge's
+#      explanation if you want it). There's no per-run list to unwrap now --
+#      one sample gives one MetricResult. If you later score several samples
+#      per run, you'd asyncio.gather the ascore() calls and
+#      statistics.mean their .value's; write that reduction generically now
+#      so it carries over to bigger datasets.
 #    - Append that number to a running list of per-run scores
-
+runs_faithfulness = []
+runs_context_recall = []
+for _ in range(10):
+    res_f = asyncio.run(faithfulness.ascore(
+        user_input=user_question,
+        response=sample.response,
+        retrieved_contexts=sample.retrieved_contexts))
+    res_c = asyncio.run(context_recall.ascore(
+        user_input=user_question,
+        response=sample.response,
+        retrieved_contexts=sample.retrieved_contexts,
+        reference=sample.reference))
+    runs_faithfulness.append(res_f.value)
+    runs_context_recall.append(res_c.value)
 
 # 4. Once the loop finishes, compute and print:
 #    - mean = statistics.mean(per_run_scores)
@@ -80,9 +114,21 @@ from agents.rag_agent import ask
 #    move before I should treat it as a real change instead of judge
 #    noise?" -- keep it around for whenever you're ready to act on it
 #    (e.g. wiring an actual CI gate later).
+mean = statistics.mean(runs_faithfulness)
+noise = statistics.pstdev(runs_faithfulness)
+suggested_floor = mean - 2*noise
+print("Faithfulness baseline: {mean:.3f} ± {noise:.3f}")
+print("Faithfulness suggested floor: {suggested_floor:.3f}")
 
+mean = statistics.mean(runs_context_recall)
+noise = statistics.pstdev(runs_context_recall)
+suggested_floor = mean - 2*noise
+print("Context Recall baseline: {mean:.3f} ± {noise:.3f}")
+print("Context Recall suggested floor: {suggested_floor:.3f}")
 
 # 5. (Optional, once step 4 works) Repeat steps 2-4 for a second metric --
-#    e.g. LLMContextRecall, which needs a `reference` on the sample too --
-#    so you can compare how noisy different metrics are relative to each
-#    other.
+#    e.g. ContextRecall from ragas.metrics.collections (the v0.4 name; the
+#    old LLMContextRecall is legacy). It needs a `reference` on the sample,
+#    so build the sample with reference= and pass reference= (alongside the
+#    context fields) to its ascore(). Comparing its noise to Faithfulness's
+#    tells you how much the metric choice itself affects stability.
