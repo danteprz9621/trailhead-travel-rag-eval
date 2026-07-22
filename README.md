@@ -146,97 +146,6 @@ Every metric here uses an LLM as judge, and `test_dataset_eval.py`'s
 slowest in the suite (well over a minute on local 7B/8B models), same as the
 Synthesizer-based test was in `deepeval-capstone`.
 
-## Gotchas encountered building this
-
-These came up while getting this project's approach working end-to-end
-against the local models above. Worth knowing if you're extending it or
-building something similar — they're easy ways to end up with a test that
-looks right but never actually checks anything:
-
-- **Only one metric class in this project is still on the legacy
-  `ragas.metrics` import, and it's not an `evaluate()` thing.** An earlier
-  version of this README claimed `TestsetGenerator` *required* the legacy
-  `LangchainLLMWrapper`/`LangchainEmbeddingsWrapper` types, and that a
-  legacy-vs-collections split forced `evaluate()` in some files. Both were
-  wrong — tested directly: `TestsetGenerator` works fine with
-  `llm_factory`/`embedding_factory` judges (once `rapidfuzz` is installed;
-  see below), and no file in this project actually calls `evaluate()` any
-  more — every test scores directly via `ascore()`. The real, still-true
-  reason `test_custom_metrics.py` imports `DiscreteMetric` from
-  `ragas.metrics` instead of `ragas.metrics.collections` is simpler:
-  `DiscreteMetric` (the current replacement for the removed `AspectCritic`)
-  just doesn't have a collections equivalent yet.
-- **Legacy `ResponseRelevancy` silently breaks with `embedding_factory`'s
-  embeddings — confirmed, not documented anywhere.** It needs an object
-  with an `.embed_query()` method (what `LangchainEmbeddingsWrapper`
-  produces); `embedding_factory("openai", ..., client=client)`'s modern-
-  interface object doesn't have one. It doesn't raise — `evaluate()` just
-  returns `{'answer_relevancy': nan}`, the exact silent-failure mode
-  `ragas-course.md` warns about for a different reason (a typo'd dataset
-  column). This is why `test_dataset_eval.py` only uses `Faithfulness` (no
-  embeddings needed) rather than also covering `ResponseRelevancy` —
-  `AnswerRelevancy` coverage lives in `test_rag_agent.py`'s collections API
-  instead, where `embedding_factory` works fine.
-- **`TestsetGenerator` needs `rapidfuzz` installed, unrelated to any of the
-  above.** Without it, `generate_with_langchain_docs(...)` fails partway
-  through with `ImportError: rapidfuzz is required for string distance`.
-  It's in `requirements.txt`; if you're seeing this error, your environment
-  is stale — reinstall.
-- **`llm_factory()` needs an OpenAI-SDK-style client, not a LangChain one —
-  and it needs the async variant.** `AsyncOpenAI`, not `OpenAI`: the
-  collections metrics' `.ascore()` is async internally
-  (`llm.agenerate(...)`), and it raises a clear `TypeError` if you hand it a
-  sync client. Point that client's `base_url` at Ollama's OpenAI-compatible
-  endpoint (`http://localhost:11434/v1`) and pass any placeholder string as
-  `api_key` — Ollama doesn't check it, but the OpenAI SDK requires the field
-  to be non-empty.
-- **Nothing here fails your test for you — every `ascore()` result needs an
-  explicit assert.** Unlike DeepEval, a low Ragas score doesn't raise.
-  `ascore()` returns a `MetricResult`, and the numeric score is on its
-  `.value` (a label string, e.g. `"clean"`/`"invented"`, for
-  `DiscreteMetric`) — not a pass/fail verdict. An un-asserted `MetricResult`
-  object is truthy, so a bare `assert result` would always pass no matter
-  the score; every test in this project checks `.value` against a real
-  threshold or label instead.
-- **Wire a real reference into any correctness-style check.** A metric like
-  `ContextPrecisionWithReference`/`ContextRecall` (or their legacy
-  `LLMContextPrecisionWithReference`/`LLMContextRecall` equivalents) is only
-  meaningful if you actually pass a real `reference` — an empty or made-up
-  one means the judge has nothing real to compare against.
-- **`ResponseGroundedness` can be strict about extrapolation.** It's scoring
-  whether the response is grounded in `retrieved_contexts`, not whether the
-  response is *correct* — a reasonable inference that goes slightly beyond
-  what the context literally says (e.g. extending an explicit "Latin-alphabet
-  corrections only" rule to cover a script the context never mentions) can
-  score low even though the inference itself is defensible. Worth deciding
-  for yourself whether that's a real failure before picking a threshold.
-- **Watch for accidental tuples.** In `test_dataset_eval.py`, it's an easy
-  typo to write `sample = SingleTurnSample(...),` with a trailing comma,
-  silently making `sample` a 1-tuple instead of a `SingleTurnSample`.
-- **Answer every golden with the RAG agent, hand-written or synthetic.**
-  Both halves of `test_dataset_eval.py` are questions about
-  `data/knowledge_base/` content, so both need to go through
-  `agents/rag_agent.py`'s `ask()` (which returns `retrieved_contexts`) for
-  `Faithfulness` to have something real to check the answer against.
-- **`result["metric_name"]` is a list, not a scalar — confirmed against
-  this Ragas version, contradicting `ragas-course.md`'s own Module 9 sample
-  code.** The course writes `score = ragas_result[metric]; assert score >=
-  floor(metric)`, treating the subscript as a single aggregate number.
-  Tested directly against this installed version: it's a **list of
-  per-sample scores**. `print(result)` shows a nicely-formatted mean, but
-  indexing into the object itself does not give you that mean — comparing
-  the list to a float raises `TypeError: '>=' not supported between
-  instances of 'list' and 'float'`. Reduce it yourself with
-  `statistics.mean(result[metric])` before comparing to anything. This
-  matters most in `scripts/measure_noise.py` (and would matter in any CI
-  gate built on top of it later).
-- **`llm_factory("gpt-4o-mini")` (the course's zero-argument shortcut) also
-  doesn't work as written against this version.** It now requires an
-  explicit `client=`, and raises `ValueError: llm_factory() requires a
-  client instance` without one — matching what `test_rag_agent.py` already
-  does (build an `AsyncOpenAI` client explicitly, don't rely on env-var
-  auto-detection).
-
 ## Ragas metric → DeepEval metric cheat sheet
 
 **`test_rag_agent.py`, `test_dataset_eval.py`, `scripts/measure_noise.py`**
@@ -248,7 +157,7 @@ looks right but never actually checks anything:
 | `AnswerRelevancyMetric` | `AnswerRelevancy` | Only in `test_rag_agent.py` — needs `embeddings` too; not duplicated in the other files |
 | `ContextualPrecisionMetric` | `ContextPrecisionWithReference` | Needs `reference` (ground truth), not `expected_output`; `ContextPrecisionWithoutReference` is the reference-free variant the course recommends for production |
 | `ContextualRecallMetric` | `ContextRecall` | Same |
-| `HallucinationMetric` | `ResponseGroundedness` | Checks the response is grounded in `retrieved_contexts` — see the strictness gotcha above |
+| `HallucinationMetric` | `ResponseGroundedness` | Checks the response is grounded in `retrieved_contexts` |
 
 **`test_custom_metrics.py`** — the one file still on the legacy
 `ragas.metrics` import, because `DiscreteMetric` has no
