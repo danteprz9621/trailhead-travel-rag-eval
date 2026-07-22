@@ -4,9 +4,9 @@ A practice project for evaluating a RAG (retrieval-augmented generation)
 pipeline with [Ragas](https://docs.ragas.io) — deliberately scoped to just
 that, since RAG evaluation is what Ragas is actually built and battle-tested
 for. It reuses the "Trailhead Travel" RAG agent and knowledge base from
-[`../deepeval-capstone`](../deepeval-capstone), a broader capstone that also
-covered a single-turn agent, a chatbot, and safety/red-teaming with
-DeepEval. This project isn't a 1:1 port of that scope: DeepEval is a
+[`../deepeval-capstone`](../deepeval-capstone), a separate practice project
+that also covered a single-turn agent, a chatbot, and safety/red-teaming
+with DeepEval. This project isn't a 1:1 port of that scope: DeepEval is a
 general-purpose eval framework that covers all of those domains natively and
 well, but Ragas's non-RAG metrics (safety-style criteria via the generic
 `AspectCritic` escape hatch, or the newer `TopicAdherenceScore` for
@@ -14,12 +14,6 @@ multi-turn role adherence) turned out to be noticeably less mature and less
 reliable than its core RAG metrics when tried against a small local judge
 model — see [Why not the other agents too?](#why-not-the-other-agents-too)
 below for what that looked like in practice.
-
-The `tests/` files here are **skeletons, not finished tests** — each one has
-a docstring plus numbered comments describing what to build step by step;
-you write the actual code. This mirrors how the DeepEval project's `tests/`
-files started out (see that project's initial git commit) before being
-filled in and corrected over several commits.
 
 Runs fully local and free from the start: the agent and every judge/embedder
 model is served by [Ollama](https://ollama.com) — no API keys, no rate
@@ -35,11 +29,12 @@ ragas-capstone/
 ├── data/
 │   └── knowledge_base/        # same 7 policy docs as deepeval-capstone, reused as-is
 ├── scripts/
-│   └── measure_noise.py            # SKELETON: eval-noise floor calibration (run manually, not part of pytest)
+│   └── measure_noise.py            # eval-noise floor calibration (run manually, not part of pytest)
 ├── tests/
-│   ├── test_rag_agent.py           # SKELETON: Faithfulness, ContextPrecision/Recall, AnswerRelevancy, ResponseGroundedness (collections API + ascore())
-│   ├── test_dataset_eval.py        # SKELETON: EvaluationDataset + TestsetGenerator + evaluate() (legacy metrics API)
-│   ├── test_custom_metrics.py      # SKELETON: domain-specific AspectCritic (legacy metrics API)
+│   ├── conftest.py                 # Windows event-loop-policy fix, applies to the whole suite
+│   ├── test_rag_agent.py           # Faithfulness, ContextPrecision/Recall, AnswerRelevancy, ResponseGroundedness (collections API + ascore())
+│   ├── test_dataset_eval.py        # EvaluationDataset + TestsetGenerator, scored via ascore() (collections API)
+│   ├── test_custom_metrics.py      # domain-specific DiscreteMetric (legacy metrics API)
 ├── requirements.txt
 ├── pytest.ini
 ├── .env.example
@@ -112,15 +107,17 @@ history and README):
   `LangchainLLMWrapper`/`ChatOllama`/`LangchainEmbeddingsWrapper`/
   `OllamaEmbeddings` any more.
 
-  One real API split remains, independent of how the judge is built:
-  `test_rag_agent.py` uses `ragas.metrics.collections` metrics scored
-  directly with `await metric.ascore(...)`, while `test_dataset_eval.py`,
-  `test_custom_metrics.py`, and `scripts/measure_noise.py` use the older
-  `ragas.metrics` classes scored via `evaluate()`/`EvaluationDataset` —
-  `evaluate()` flatly rejects `collections` metric objects
-  (`TypeError: All metrics must be initialised metric objects`), so the two
-  metric families can't be mixed in one `evaluate()` call. See the cheat
-  sheet below for which file uses which.
+  One real API split remains, independent of how the judge is built: every
+  file scores samples directly with `await metric.ascore(...)`, but the
+  metric classes come from two different places. `test_rag_agent.py`,
+  `test_dataset_eval.py`, and `scripts/measure_noise.py` use
+  `ragas.metrics.collections` (`Faithfulness`, `ContextRecall`,
+  `AnswerRelevancy`, etc.). `test_custom_metrics.py` is the one exception —
+  `DiscreteMetric` (the current replacement for the removed `AspectCritic`)
+  has no `ragas.metrics.collections` equivalent yet, so it stays on the
+  legacy `ragas.metrics` import. Neither `evaluate()` nor `EvaluationDataset`'s
+  batch scoring is actually used anywhere in this project any more. See the
+  cheat sheet below for which file uses which.
 
 Install [Ollama](https://ollama.com), then pull all three models and make
 sure the Ollama server is running (it typically runs as a background
@@ -138,11 +135,9 @@ call and a judge call.
 
 ## Running tests
 
-Once you've filled in a skeleton file:
-
 ```bash
-pytest tests/test_rag_agent.py -v   # one file at a time as you go
-pytest tests/ -v                    # everything, once it's all filled in
+pytest tests/test_rag_agent.py -v   # one file at a time
+pytest tests/ -v                    # the whole suite
 ```
 
 Every metric here uses an LLM as judge, and `test_dataset_eval.py`'s
@@ -151,27 +146,26 @@ Every metric here uses an LLM as judge, and `test_dataset_eval.py`'s
 slowest in the suite (well over a minute on local 7B/8B models), same as the
 Synthesizer-based test was in `deepeval-capstone`.
 
-## Gotchas to get right while implementing
+## Gotchas encountered building this
 
-These came up while validating that this project's approach actually works
-end-to-end against the local models above, before the test files were
-turned back into skeletons for you to fill in. Keep them in mind — they're
-easy ways to end up with a test that looks right but never actually checks
-anything:
+These came up while getting this project's approach working end-to-end
+against the local models above. Worth knowing if you're extending it or
+building something similar — they're easy ways to end up with a test that
+looks right but never actually checks anything:
 
-- **Two Ragas metric families, and `evaluate()` won't mix them — but this
-  isn't a judge-construction limitation.** An earlier version of this README
-  claimed `TestsetGenerator` *required* the legacy `LangchainLLMWrapper`/
-  `LangchainEmbeddingsWrapper` types. That was wrong — tested directly:
-  `TestsetGenerator` works fine with `llm_factory`/`embedding_factory`
-  judges (once `rapidfuzz` is installed; see below). The real, still-true
-  constraint is narrower: `evaluate()` only accepts `ragas.metrics.*`
-  (legacy) metric objects — passing a `ragas.metrics.collections.*` object
-  raises `TypeError: All metrics must be initialised metric objects`. So
-  `test_rag_agent.py` (collections + `ascore()`) and `test_dataset_eval.py`/
-  `test_custom_metrics.py`/`scripts/measure_noise.py` (legacy + `evaluate()`)
-  are on different metric families for that reason, not because of how the
-  judge itself was built.
+- **Only one metric class in this project is still on the legacy
+  `ragas.metrics` import, and it's not an `evaluate()` thing.** An earlier
+  version of this README claimed `TestsetGenerator` *required* the legacy
+  `LangchainLLMWrapper`/`LangchainEmbeddingsWrapper` types, and that a
+  legacy-vs-collections split forced `evaluate()` in some files. Both were
+  wrong — tested directly: `TestsetGenerator` works fine with
+  `llm_factory`/`embedding_factory` judges (once `rapidfuzz` is installed;
+  see below), and no file in this project actually calls `evaluate()` any
+  more — every test scores directly via `ascore()`. The real, still-true
+  reason `test_custom_metrics.py` imports `DiscreteMetric` from
+  `ragas.metrics` instead of `ragas.metrics.collections` is simpler:
+  `DiscreteMetric` (the current replacement for the removed `AspectCritic`)
+  just doesn't have a collections equivalent yet.
 - **Legacy `ResponseRelevancy` silently breaks with `embedding_factory`'s
   embeddings — confirmed, not documented anywhere.** It needs an object
   with an `.embed_query()` method (what `LangchainEmbeddingsWrapper`
@@ -196,15 +190,14 @@ anything:
   endpoint (`http://localhost:11434/v1`) and pass any placeholder string as
   `api_key` — Ollama doesn't check it, but the OpenAI SDK requires the field
   to be non-empty.
-- **`evaluate()` never fails your test for you** (`test_dataset_eval.py`,
-  `test_custom_metrics.py`). Unlike DeepEval, a low Ragas score doesn't raise — you always need an
-  explicit `assert` on the returned result. Figure out what
-  `EvaluationResult` actually looks like (what you can index into it with)
-  before you decide how to assert on it. Collections metrics
-  (`test_rag_agent.py`) have the same issue in a different shape: `ascore()`
-  returns a `MetricResult`, and the numeric score is on its `.value` — an
-  un-asserted `MetricResult` object is truthy, so a bare `assert result`
-  would always pass no matter the score.
+- **Nothing here fails your test for you — every `ascore()` result needs an
+  explicit assert.** Unlike DeepEval, a low Ragas score doesn't raise.
+  `ascore()` returns a `MetricResult`, and the numeric score is on its
+  `.value` (a label string, e.g. `"clean"`/`"invented"`, for
+  `DiscreteMetric`) — not a pass/fail verdict. An un-asserted `MetricResult`
+  object is truthy, so a bare `assert result` would always pass no matter
+  the score; every test in this project checks `.value` against a real
+  threshold or label instead.
 - **Wire a real reference into any correctness-style check.** A metric like
   `ContextPrecisionWithReference`/`ContextRecall` (or their legacy
   `LLMContextPrecisionWithReference`/`LLMContextRecall` equivalents) is only
@@ -246,27 +239,29 @@ anything:
 
 ## Ragas metric → DeepEval metric cheat sheet
 
-**`test_rag_agent.py`** (current `ragas.metrics.collections` API):
+**`test_rag_agent.py`, `test_dataset_eval.py`, `scripts/measure_noise.py`**
+(scored via `ascore()`, current `ragas.metrics.collections` API):
 
 | DeepEval | Ragas | Notes |
 |---|---|---|
 | `FaithfulnessMetric` | `Faithfulness` | Decomposes the response into claims, checks each against `retrieved_contexts` |
-| `AnswerRelevancyMetric` | `AnswerRelevancy` | The collections-API name for what the course and the legacy API both call `ResponseRelevancy`/`answer_relevancy` — needs `embeddings` too |
+| `AnswerRelevancyMetric` | `AnswerRelevancy` | Only in `test_rag_agent.py` — needs `embeddings` too; not duplicated in the other files |
 | `ContextualPrecisionMetric` | `ContextPrecisionWithReference` | Needs `reference` (ground truth), not `expected_output`; `ContextPrecisionWithoutReference` is the reference-free variant the course recommends for production |
 | `ContextualRecallMetric` | `ContextRecall` | Same |
 | `HallucinationMetric` | `ResponseGroundedness` | Checks the response is grounded in `retrieved_contexts` — see the strictness gotcha above |
 
-**`test_dataset_eval.py`** and **`test_custom_metrics.py`** (legacy
-`ragas.metrics` + `evaluate()` API — not because of the judge, which is
-`llm_factory` here too, but because `evaluate()` requires this metric
-family, and `TestsetGenerator` needs its `llm`/`embedding_model`):
+**`test_custom_metrics.py`** — the one file still on the legacy
+`ragas.metrics` import, because `DiscreteMetric` has no
+`ragas.metrics.collections` equivalent yet:
 
 | DeepEval | Ragas | Notes |
 |---|---|---|
-| `FaithfulnessMetric` | `Faithfulness` | Legacy import path (`ragas.metrics`, not `ragas.metrics.collections`); no embeddings needed |
-| `AnswerRelevancyMetric` | *(not used here)* | Legacy `ResponseRelevancy` is broken with `embedding_factory`'s embeddings (see gotchas) — this coverage lives in `test_rag_agent.py`'s `AnswerRelevancy` instead |
-| `GEval` (custom criteria) | `AspectCritic` | `test_custom_metrics.py` — binary yes/no judge, no collections equivalent exists yet |
-| `Synthesizer` | `TestsetGenerator` | Both build synthetic goldens from local docs; Ragas builds a knowledge graph first |
+| `GEval` (custom criteria) | `DiscreteMetric` | Binary/labeled judge from a plain-English prompt; the current replacement for the removed `AspectCritic` |
+
+`test_dataset_eval.py` also uses `TestsetGenerator` (built from the same
+`llm_factory`/`embedding_factory` judges) as the Ragas analog to DeepEval's
+`Synthesizer` — both build synthetic goldens from local docs, and Ragas
+builds a knowledge graph first.
 
 ## Course coverage
 
@@ -275,31 +270,31 @@ Mapping from `ragas-course.md`'s modules to what's in this project:
 | Module | Where |
 |---|---|
 | 1. Orientation | This README; [Why not the other agents too?](#why-not-the-other-agents-too) below |
-| 2. Data model (`SingleTurnSample`/`EvaluationDataset`/`.from_list()`) | `test_dataset_eval.py` steps 2 and 6 |
+| 2. Data model (`SingleTurnSample`/`EvaluationDataset`/`.from_list()`) | `test_dataset_eval.py`'s `test_evaluation_dataset()` and `test_evaluation_dataset_from_list()` |
 | 3. Evaluator LLM | Every test file; see [Running fully local with Ollama](#running-fully-local-with-ollama) |
-| 4. The four core metrics | `test_rag_agent.py` (all four, steps 3-6) |
-| 5. Running a full evaluation, reading scores diagnostically | `test_dataset_eval.py` (uses `evaluate()`/batch scoring); diagnostic table below |
+| 4. The four core metrics | `test_rag_agent.py` (all four) |
+| 5. Running a full evaluation, reading scores diagnostically | `test_dataset_eval.py` (batch scoring); diagnostic table below |
 | 6. Non-determinism / eval-noise floor / `RunConfig` | `scripts/measure_noise.py` |
-| 7. Test set generation | `test_dataset_eval.py` steps 3-5 (`TestsetGenerator`) |
+| 7. Test set generation | `test_dataset_eval.py`'s `test_synth_evaluation_dataset()` (`TestsetGenerator`) |
 | 8. Custom metrics (`AspectCritic`) | `test_custom_metrics.py` |
 | 9. Wiring alongside DeepEval in CI | **Deliberately not built yet** — see note below |
-| 10. Capstone brief | This whole project — see below for what maps to what |
+| 10. Final deliverables | This whole project — see below for what maps to what |
 
-Module 9 and the CI-gate half of the Module 10 capstone brief are
+Module 9 and the CI-gate half of Module 10's final deliverables are
 intentionally not in this project yet — `scripts/measure_noise.py` (Module
 6) is here and stands on its own, but wiring its output into an actual
 pytest gate (what Module 9 describes) is a deliberate next step, not
-something to build until you're ready for it.
+something built until it's actually needed.
 
-Capstone brief, mapped to this project's actual deliverables:
+The course's suggested final deliverables, mapped to what's actually here:
 
 1. **Add retrieval** → `agents/rag_agent.py` (already done, reused from `deepeval-capstone`)
-2. **Golden dataset, generated + hand-corrected** → `test_dataset_eval.py` steps 3-5; the "hand-correct before it becomes a gate" discipline is on you when you pick `testset_size` and actually read what comes back, not something code can enforce
+2. **Golden dataset, generated + hand-corrected** → `test_dataset_eval.py`'s `load_knowledge_base_docs()`/`test_synth_evaluation_dataset()`; the "hand-correct before it becomes a gate" discipline is on whoever picks `testset_size` and actually reads what comes back, not something code can enforce
 3. **Measure eval-noise floor** → `scripts/measure_noise.py`
 4. **RAGAS gate with noise-aware floors** → not built yet, by choice — see the Module 9 note above
-5. **One custom `AspectCritic`, gated high** → `test_custom_metrics.py`
+5. **One custom metric, gated high** → `test_custom_metrics.py`
 6. **DeepEval as the fast per-PR layer, RAGAS on schedule/release** → conceptual only for now, covered in [Why not the other agents too?](#why-not-the-other-agents-too); becomes concrete once item 4 exists
-7. **Write up the flakiness section** → your job, once you've actually run `scripts/measure_noise.py` and have real numbers to write about — a writeup with placeholder numbers isn't the deliverable the course is asking for
+7. **Write up the flakiness section** → only meaningful once `scripts/measure_noise.py` has actually been run and there are real numbers to write about — a writeup with placeholder numbers isn't the deliverable the course is asking for
 
 ### Reading scores diagnostically (Module 5)
 
@@ -313,10 +308,13 @@ core metrics into one score — read them as a decision tree instead:
 | Context precision low, recall high | Retrieving the right stuff *plus* a lot of noise | Reranker, lower `top_k` |
 | Everything high, but a real user would still be unhappy | Golden dataset doesn't reflect real queries | Regenerate it (`test_dataset_eval.py`'s `TestsetGenerator` step) |
 
-`result.to_pandas()` (on an `evaluate()` result, i.e. in `test_dataset_eval.py`)
-is where you'd actually go look — one row per sample, one column per
-metric — to find which specific question tanked a score instead of only
-seeing the aggregate.
+Since every test here scores samples one at a time via `ascore()` rather
+than through a batch `evaluate()` call, there's no `to_pandas()` dataframe
+to inspect afterward — the per-sample scores are just whatever gets
+collected into a list (e.g. `test_dataset_eval.py`'s `scores`). To find
+which specific question tanked a score, print or log the score next to the
+golden it came from as you go, rather than only asserting on the aggregate
+at the end.
 
 ## Why not the other agents too?
 
