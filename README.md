@@ -4,7 +4,7 @@ A practice project for evaluating a RAG (retrieval-augmented generation)
 pipeline with [Ragas](https://docs.ragas.io) — deliberately scoped to just
 that, since RAG evaluation is what Ragas is actually built and battle-tested
 for. It reuses the "Trailhead Travel" RAG agent and knowledge base from
-[`../deepeval-capstone`](../deepeval-capstone), a separate practice project
+[`../deepeval-practice`](../deepeval-practice), a separate practice project
 that also covered a single-turn agent, a chatbot, and safety/red-teaming
 with DeepEval. This project isn't a 1:1 port of that scope: DeepEval is a
 general-purpose eval framework that covers all of those domains natively and
@@ -12,8 +12,7 @@ well, but Ragas's non-RAG metrics (safety-style criteria via the generic
 `AspectCritic` escape hatch, or the newer `TopicAdherenceScore` for
 multi-turn role adherence) turned out to be noticeably less mature and less
 reliable than its core RAG metrics when tried against a small local judge
-model — see [Why not the other agents too?](#why-not-the-other-agents-too)
-below for what that looked like in practice.
+model.
 
 Runs fully local and free from the start: the agent and every judge/embedder
 model is served by [Ollama](https://ollama.com) — no API keys, no rate
@@ -27,7 +26,7 @@ ragas-capstone/
 ├── agents/
 │   └── rag_agent.py           # TF-IDF retrieval over data/knowledge_base/ + LLM answer
 ├── data/
-│   └── knowledge_base/        # same 7 policy docs as deepeval-capstone, reused as-is
+│   └── knowledge_base/        # same 7 policy docs as deepeval-practice, reused as-is
 ├── scripts/
 │   └── measure_noise.py            # eval-noise floor calibration (run manually, not part of pytest)
 ├── tests/
@@ -42,19 +41,16 @@ ragas-capstone/
 ```
 
 This structure follows `ragas-course.md` (one level above `files/`, i.e.
-`../../ragas-course.md` from here) module by module — see
-[Course coverage](#course-coverage) below for the exact mapping, and a
-couple of places where the course's sample code doesn't match what this
-Ragas version actually does.
+`../../ragas-course.md` from here) module by module.
 
 `agents/rag_agent.py` and `data/knowledge_base/` are reused unchanged from
-`deepeval-capstone` — the agent never depended on DeepEval, just `ollama`
+`deepeval-practice` — the agent never depended on DeepEval, just `ollama`
 and `scikit-learn`.
 
 ## Setup
 
 ```bash
-cd ragas-capstone
+cd ragas-practice
 python -m venv .venv
 .venv\Scripts\activate        # Windows
 pip install -r requirements.txt
@@ -71,7 +67,7 @@ python agents/rag_agent.py
 
 ## Running fully local with Ollama
 
-Same setup as `deepeval-capstone` ended up with, applied from the start this
+Same setup as `deepeval-practice` ended up with, applied from the start this
 time instead of two rounds of corrections (OpenAI → Gemini for free-tier
 availability, then Gemini → Ollama once its 20-requests/day quota and
 same-model self-evaluation bias became a problem — see that project's git
@@ -144,116 +140,5 @@ Every metric here uses an LLM as judge, and `test_dataset_eval.py`'s
 `TestsetGenerator` additionally builds a small knowledge graph from
 `data/knowledge_base/` before generating goldens — expect that one to be the
 slowest in the suite (well over a minute on local 7B/8B models), same as the
-Synthesizer-based test was in `deepeval-capstone`.
+Synthesizer-based test was in `deepeval-practice`.
 
-## Ragas metric → DeepEval metric cheat sheet
-
-**`test_rag_agent.py`, `test_dataset_eval.py`, `scripts/measure_noise.py`**
-(scored via `ascore()`, current `ragas.metrics.collections` API):
-
-| DeepEval | Ragas | Notes |
-|---|---|---|
-| `FaithfulnessMetric` | `Faithfulness` | Decomposes the response into claims, checks each against `retrieved_contexts` |
-| `AnswerRelevancyMetric` | `AnswerRelevancy` | Only in `test_rag_agent.py` — needs `embeddings` too; not duplicated in the other files |
-| `ContextualPrecisionMetric` | `ContextPrecisionWithReference` | Needs `reference` (ground truth), not `expected_output`; `ContextPrecisionWithoutReference` is the reference-free variant the course recommends for production |
-| `ContextualRecallMetric` | `ContextRecall` | Same |
-| `HallucinationMetric` | `ResponseGroundedness` | Checks the response is grounded in `retrieved_contexts` |
-
-**`test_custom_metrics.py`** — the one file still on the legacy
-`ragas.metrics` import, because `DiscreteMetric` has no
-`ragas.metrics.collections` equivalent yet:
-
-| DeepEval | Ragas | Notes |
-|---|---|---|
-| `GEval` (custom criteria) | `DiscreteMetric` | Binary/labeled judge from a plain-English prompt; the current replacement for the removed `AspectCritic` |
-
-`test_dataset_eval.py` also uses `TestsetGenerator` (built from the same
-`llm_factory`/`embedding_factory` judges) as the Ragas analog to DeepEval's
-`Synthesizer` — both build synthetic goldens from local docs, and Ragas
-builds a knowledge graph first.
-
-## Course coverage
-
-Mapping from `ragas-course.md`'s modules to what's in this project:
-
-| Module | Where |
-|---|---|
-| 1. Orientation | This README; [Why not the other agents too?](#why-not-the-other-agents-too) below |
-| 2. Data model (`SingleTurnSample`/`EvaluationDataset`/`.from_list()`) | `test_dataset_eval.py`'s `test_evaluation_dataset()` and `test_evaluation_dataset_from_list()` |
-| 3. Evaluator LLM | Every test file; see [Running fully local with Ollama](#running-fully-local-with-ollama) |
-| 4. The four core metrics | `test_rag_agent.py` (all four) |
-| 5. Running a full evaluation, reading scores diagnostically | `test_dataset_eval.py` (batch scoring); diagnostic table below |
-| 6. Non-determinism / eval-noise floor / `RunConfig` | `scripts/measure_noise.py` |
-| 7. Test set generation | `test_dataset_eval.py`'s `test_synth_evaluation_dataset()` (`TestsetGenerator`) |
-| 8. Custom metrics (`AspectCritic`) | `test_custom_metrics.py` |
-| 9. Wiring alongside DeepEval in CI | **Deliberately not built yet** — see note below |
-| 10. Final deliverables | This whole project — see below for what maps to what |
-
-Module 9 and the CI-gate half of Module 10's final deliverables are
-intentionally not in this project yet — `scripts/measure_noise.py` (Module
-6) is here and stands on its own, but wiring its output into an actual
-pytest gate (what Module 9 describes) is a deliberate next step, not
-something built until it's actually needed.
-
-The course's suggested final deliverables, mapped to what's actually here:
-
-1. **Add retrieval** → `agents/rag_agent.py` (already done, reused from `deepeval-capstone`)
-2. **Golden dataset, generated + hand-corrected** → `test_dataset_eval.py`'s `load_knowledge_base_docs()`/`test_synth_evaluation_dataset()`; the "hand-correct before it becomes a gate" discipline is on whoever picks `testset_size` and actually reads what comes back, not something code can enforce
-3. **Measure eval-noise floor** → `scripts/measure_noise.py`
-4. **RAGAS gate with noise-aware floors** → not built yet, by choice — see the Module 9 note above
-5. **One custom metric, gated high** → `test_custom_metrics.py`
-6. **DeepEval as the fast per-PR layer, RAGAS on schedule/release** → conceptual only for now, covered in [Why not the other agents too?](#why-not-the-other-agents-too); becomes concrete once item 4 exists
-7. **Write up the flakiness section** → only meaningful once `scripts/measure_noise.py` has actually been run and there are real numbers to write about — a writeup with placeholder numbers isn't the deliverable the course is asking for
-
-### Reading scores diagnostically (Module 5)
-
-Print this and pin it, same as the course says. Don't average the four
-core metrics into one score — read them as a decision tree instead:
-
-| Pattern | Diagnosis | First thing to check |
-|---|---|---|
-| Faithfulness low, precision/recall high | Retrieval's fine, the *generator* is ignoring context | Prompt, model — not a retriever problem |
-| Context recall low | Never retrieved the needed docs | Chunking, embeddings, `top_k` — no prompt tweak fixes this |
-| Context precision low, recall high | Retrieving the right stuff *plus* a lot of noise | Reranker, lower `top_k` |
-| Everything high, but a real user would still be unhappy | Golden dataset doesn't reflect real queries | Regenerate it (`test_dataset_eval.py`'s `TestsetGenerator` step) |
-
-Since every test here scores samples one at a time via `ascore()` rather
-than through a batch `evaluate()` call, there's no `to_pandas()` dataframe
-to inspect afterward — the per-sample scores are just whatever gets
-collected into a list (e.g. `test_dataset_eval.py`'s `scores`). To find
-which specific question tanked a score, print or log the score next to the
-golden it came from as you go, rather than only asserting on the aggregate
-at the end.
-
-## Why not the other agents too?
-
-`deepeval-capstone` also tests a single-turn agent, a multi-turn chatbot,
-and safety/red-teaming. Ragas *can* technically be pointed at those — it has
-grown a broader metrics catalog over time beyond pure RAG, including
-general-purpose criteria (`AspectCritic`, `RubricsScore`) and agent/
-multi-turn metrics (`TopicAdherenceScore`, `AgentGoalAccuracyWithReference`)
-— but while building this project, that non-RAG surface was noticeably
-rougher than the RAG core:
-
-- `TopicAdherenceScore` (Ragas's own dedicated multi-turn "stayed on topic"
-  metric, the closest thing to DeepEval's `RoleAdherenceMetric`) reliably
-  broke on `llama3.1:8b`: its judge prompt requires structured JSON output,
-  and the local model kept failing to produce valid JSON for it
-  (`OutputParserException`).
-- Safety-style checks (bias, toxicity, PII leakage) have no dedicated Ragas
-  metrics at all — the only option was `AspectCritic` with a hand-written
-  definition, a generic fallback rather than a purpose-built, tuned detector
-  the way DeepEval's `BiasMetric`/`ToxicityMetric`/`PIILeakageMetric` are.
-  And even that fallback is on its way out without a replacement: `AspectCritic`
-  itself is deprecated in favor of the newer `ragas.metrics.collections` API
-  (see the RAG cheat sheet above), but as of this Ragas version there's no
-  `AspectCritic` in `collections` at all to migrate to — a real gap, not
-  just a rename.
-
-None of that is a reason Ragas is "bad" — it's a reason to use the right
-tool for each job. `Faithfulness` and the `ContextPrecision`/`ContextRecall`
-family are genuinely Ragas's strongest, most reliable metrics, which is
-exactly what this project focuses on. For single-turn correctness,
-conversational quality, or safety/red-teaming, DeepEval (or a dedicated tool
-like Guardrails AI / NeMo Guardrails for safety specifically) is the
-better-fitting choice — that's what `deepeval-capstone` already covers.
