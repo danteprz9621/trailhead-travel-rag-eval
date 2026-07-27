@@ -1,18 +1,17 @@
-# Ragas Practice Project: Testing a RAG Agent
+# Trailhead Travel RAG Eval
 
-A practice project for evaluating a RAG (retrieval-augmented generation)
-pipeline with [Ragas](https://docs.ragas.io) — deliberately scoped to just
-that, since RAG evaluation is what Ragas is actually built and battle-tested
-for. It reuses the "Trailhead Travel" RAG agent and knowledge base from
-[`../deepeval-practice`](../deepeval-practice), a separate practice project
-that also covered a single-turn agent, a chatbot, and safety/red-teaming
-with DeepEval. This project isn't a 1:1 port of that scope: DeepEval is a
-general-purpose eval framework that covers all of those domains natively and
-well, but Ragas's non-RAG metrics (safety-style criteria via the generic
-`AspectCritic` escape hatch, or the newer `TopicAdherenceScore` for
-multi-turn role adherence) turned out to be noticeably less mature and less
-reliable than its core RAG metrics when tried against a small local judge
-model.
+A focused RAG (retrieval-augmented generation) evaluation suite for
+Trailhead Travel's support agent, built on [Ragas](https://docs.ragas.io) —
+deliberately scoped to just RAG quality (faithfulness, retrieval precision
+and recall), which is what Ragas is actually built and battle-tested for,
+rather than trying to stretch it across every kind of LLM quality check.
+The agent and knowledge base are the same ones from
+[`trailhead-travel-agent-eval`](https://github.com/danteprz9621/trailhead-travel-agent-eval),
+Trailhead Travel's broader DeepEval-based suite — this project deliberately
+narrows scope to what Ragas's core RAG metrics do best, since its non-RAG
+metrics (safety-style criteria via the generic `AspectCritic` escape hatch,
+or `TopicAdherenceScore` for multi-turn role adherence) proved noticeably
+less mature against a small local judge model.
 
 Runs fully local and free from the start: the agent and every judge/embedder
 model is served by [Ollama](https://ollama.com) — no API keys, no rate
@@ -22,11 +21,11 @@ below.
 ## Project structure
 
 ```
-ragas-capstone/
+trailhead-travel-rag-eval/
 ├── agents/
 │   └── rag_agent.py           # TF-IDF retrieval over data/knowledge_base/ + LLM answer
 ├── data/
-│   └── knowledge_base/        # same 7 policy docs as deepeval-practice, reused as-is
+│   └── knowledge_base/        # same 7 policy docs as trailhead-travel-agent-eval, reused as-is
 ├── scripts/
 │   └── measure_noise.py            # eval-noise floor calibration (run manually, not part of pytest)
 ├── tests/
@@ -40,17 +39,14 @@ ragas-capstone/
 └── .gitignore
 ```
 
-This structure follows `ragas-course.md` (one level above `files/`, i.e.
-`../../ragas-course.md` from here) module by module.
-
 `agents/rag_agent.py` and `data/knowledge_base/` are reused unchanged from
-`deepeval-practice` — the agent never depended on DeepEval, just `ollama`
-and `scikit-learn`.
+`trailhead-travel-agent-eval` — the agent never depended on DeepEval, just
+`ollama` and `scikit-learn`.
 
 ## Setup
 
 ```bash
-cd ragas-practice
+cd trailhead-travel-rag-eval
 python -m venv .venv
 .venv\Scripts\activate        # Windows
 pip install -r requirements.txt
@@ -67,11 +63,11 @@ python agents/rag_agent.py
 
 ## Running fully local with Ollama
 
-Same setup as `deepeval-practice` ended up with, applied from the start this
-time instead of two rounds of corrections (OpenAI → Gemini for free-tier
-availability, then Gemini → Ollama once its 20-requests/day quota and
-same-model self-evaluation bias became a problem — see that project's git
-history and README):
+Local judge models were the right call from the start here, for two reasons
+learned the hard way on `trailhead-travel-agent-eval`: cloud free tiers
+(e.g. Gemini's 20-requests/day cap) get exhausted almost immediately by a
+handful of test runs, and using the same model as both agent and judge
+risks the judge being blind to that model's own failure patterns:
 
 - **The agent** generates with `qwen2.5-coder:7b`.
 - **Judges** (every `tests/*.py` file) score with a *different* model,
@@ -140,5 +136,5 @@ Every metric here uses an LLM as judge, and `test_dataset_eval.py`'s
 `TestsetGenerator` additionally builds a small knowledge graph from
 `data/knowledge_base/` before generating goldens — expect that one to be the
 slowest in the suite (well over a minute on local 7B/8B models), same as the
-Synthesizer-based test was in `deepeval-practice`.
+Synthesizer-based test was in `trailhead-travel-agent-eval`.
 
